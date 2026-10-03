@@ -1,0 +1,28 @@
+# x64 MinGW 
+CC_64=x86_64-w64-mingw32-gcc
+CFLAGS=-O0 -fno-jump-tables -mno-stack-arg-probe -fno-omit-frame-pointer -shared -Wall -Wno-pointer-arith -masm=intel
+
+
+SC_HEX_DATA := $(shell xxd -p $(SCFILE) | tr -d '\n')
+
+# x64 Crystal Palace Link Spec
+CPL_64_BASE=cpl link loader.spec bin/main.x64.o bin/out.x64.bin 
+
+
+
+.PHONY: all x64 out link.x64
+
+all: x64 link.x64
+
+bin:
+	mkdir -p bin
+
+x64: bin
+	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/main.c -o bin/main.x64.o
+	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/services.c -o bin/services.x64.o
+	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/utils.c -o bin/utils.x64.o
+	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/shellwriter.c -o bin/shellwriter.x64.o
+
+
+link.x64: out
+	$(CPL_64_BASE) SC=$(SC_HEX_DATA)

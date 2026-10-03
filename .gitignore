@@ -1,0 +1,26 @@
+# Build output
+bin/
+!bin/.gitkeep
+*.o
+*.bin
+*.dll
+*.exe
+
+# Crystal Palace
+*.zip
+*.tgz
+*.jar
+
+# Keys / generated secrets
+*.key
+*.enc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
