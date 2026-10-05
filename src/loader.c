@@ -95,11 +95,15 @@ void go()
 
     HANDLE hProcess = NULL, hThread = NULL;
 
-    status = NTDLL$NtCreateUserProcess(
-        &hProcess, &hThread,
-        PROCESS_ALL_ACCESS, THREAD_ALL_ACCESS,
-        NULL, NULL, 0, 0,
-        procParams, &createInfo, &attrList);
+    // status = NTDLL$NtCreateUserProcess(
+    //     &hProcess, &hThread,
+    //     PROCESS_ALL_ACCESS, THREAD_ALL_ACCESS,
+    //     NULL, NULL, 0, 0,
+    //     procParams, &createInfo, &attrList);
+
+    dprintf("[+] NtCreateUserProcess addr=0x%llx\n", (u64)NTDLL$NtCreateUserProcess);
+    dprintf("[+] procParams=0x%llx\n", (u64)procParams);
+    status = (NTSTATUS)spoof_call((u64)NTDLL$NtCreateUserProcess, (u64)&hProcess, (u64)&hThread, (u64)PROCESS_ALL_ACCESS, (u64)THREAD_ALL_ACCESS, (u64)NULL, (u64)NULL, (u64)0, (u64)0, (u64)procParams, (u64)&createInfo, (u64)&attrList);
 
     if (!NT_SUCCESS(status)) {
         dprintf("[-] NtCreateUserProcess: 0x%X\n", status);
