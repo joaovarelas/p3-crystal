@@ -3,8 +3,7 @@
 #include "dfr.h"
 #include "spoof.h"
 
-/* ── Global pointer (fixbss patches one load: [rip + g_ctx]) ───────── */
-SPOOF_CTX *g_ctx;
+SPOOF_CTX g_ctx;
 
 /* ── parse_unwind_alloc ────────────────────────────────────────────────
  * Uses RtlLookupFunctionEntry to get the RUNTIME_FUNCTION for func_addr
@@ -41,18 +40,10 @@ static u32 parse_unwind_alloc(u8 *base, u64 func_addr)
     return alloc;
 }
 
-/* ── init_spoof ────────────────────────────────────────────────────────
- * Single allocation (3 pages, RWX):
- *   [+0x0000] SPOOF_CTX struct
- *   [+0x1000] fake stack (RSP points here)
- *   [+0x2000] guard / unused
- *
- * Flow:
- *   1. Allocate and zero 3 pages
- *   2. g_ctx → base of allocation
- *   3. Scan kernelbase for best FF E3 / FF 23 gadget (alloc >= 0x58)
- *   4. Compute BTIT/RUTS frame sizes dynamically
- *   5. Populate g_ctx fields                                          */
+/* Flow:
+ *   1. Scan kernelbase for best FF E3 / FF 23 gadget (alloc >= 0x58)
+ *   2. Compute BTIT/RUTS frame sizes dynamically
+ *   3. Populate g_ctx — frames built on go()'s real stack, no allocation */
 void init_spoof(void)
 {
     u8 *base = (u8 *)KERNEL32$GetModuleHandleA("kernelbase.dll");
@@ -61,24 +52,6 @@ void init_spoof(void)
         dprintf("[-] init_spoof: kernelbase not found\n");
         return;
     }
-
-    /* ── single allocation for struct + fake stack ───────────────────a */
-    PVOID  mem      = NULL;
-    SIZE_T mem_size = 0x3000;
-    NTSTATUS st = NTDLL$NtAllocateVirtualMemory(
-        (HANDLE)(LONG_PTR)-1, &mem, 0, &mem_size,
-        MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!NT_SUCCESS(st) || !mem) {
-        dprintf("[-] init_spoof: alloc failed 0x%x\n", st);
-        return;
-    }
-
-    u8 *p = (u8 *)mem;
-    int z;
-    for (z = 0; z < 0x3000; z++) p[z] = 0;
-
-    g_ctx             = (SPOOF_CTX *)mem;
-    g_ctx->fake_stack = (u64)mem + 0x1000;
 
     /* ── gadget scan ─────────────────────────────────────────────────── */
     u32  e_lfanew   = *(u32 *)(base + 0x3C);
@@ -142,19 +115,18 @@ void init_spoof(void)
     u64 alloc_sz = null_off + 8;
 
     /* ── populate g_ctx ─────────────────────────────────────────────── */
-    g_ctx->alloc_size = alloc_sz;
-    g_ctx->gadget     = best_gadget;
-    g_ctx->btit       = btit_addr;
-    g_ctx->ruts       = ruts_addr;
-    g_ctx->btit_off   = btit_off;
-    g_ctx->ruts_off   = ruts_off;
-    g_ctx->null_off   = null_off;
-    g_ctx->real_ret   = 0;
+    g_ctx.alloc_size = alloc_sz;
+    g_ctx.gadget     = best_gadget;
+    g_ctx.btit       = btit_addr;
+    g_ctx.ruts       = ruts_addr;
+    g_ctx.btit_off   = btit_off;
+    g_ctx.ruts_off   = ruts_off;
+    g_ctx.null_off   = null_off;
+    g_ctx.real_ret   = 0;
     /* fake_stack already set above */
-    g_ctx->fixup      = 0;
-    g_ctx->real_rsp   = 0;
+    g_ctx.fixup      = 0;
+    g_ctx.real_rsp   = 0;
 
     dprintf("[+] init_spoof: gadget=0x%llx alloc=0x%llx btit@+0x%llx ruts@+0x%llx null@+0x%llx\n",
             best_gadget, alloc_sz, btit_off, ruts_off, null_off);
-    dprintf("[+] init_spoof: fake_stack=0x%llx\n", g_ctx->fake_stack);
 }

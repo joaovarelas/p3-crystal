@@ -25,8 +25,7 @@ void go()
     dprintf("[+] go() loader running\n");
 
     init_spoof();
-    dprintf("[+] gadget=0x%llx fake_stack=0x%llx\n",
-            g_ctx->gadget, g_ctx->fake_stack);
+    dprintf("[+] gadget=0x%llx\n", g_ctx.gadget);
 
     /* ── Unmask shellcode ──────────────────────────────────────────── */
     RESOURCE *masked_sc = (RESOURCE *)GETRESOURCE(__SC__);
