@@ -1,22 +1,20 @@
 x64:
-    load "bin/main.x64.o"
-        make pic +gofirst +relax 
-		protect "spoof_call"
+    load "bin/loader.x64.o"
+        make pic +gofirst +relax
 
-	load "bin/services.x64.o"
-    	merge
+    load "bin/services.x64.o"
+        merge
 
-	load "bin/utils.x64.o"
-	    merge
+    load "bin/utils.x64.o"
+        merge
 
-	load "bin/shellwriter.x64.o"
-    	merge
+    load "bin/shellwriter.x64.o"
+        merge
 
-	load "bin/spoof.x64.o"
-    	merge
+    load "bin/spoof.x64.o"
+        merge
 
-	fixbss "getBSS"
-
+    fixbss "getBSS"
 
     dfr "resolve" "ror13" "KERNEL32, KERNELBASE, NTDLL"
     dfr "resolve_ext" "strings"

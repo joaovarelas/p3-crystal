@@ -6,7 +6,7 @@ NASM_64=nasm -f win64
 SC_HEX_DATA := $(shell xxd -p $(SCFILE) | tr -d '\n')
 
 # x64 Crystal Palace Link Spec
-CPL_64_BASE=cpl link loader.spec bin/main.x64.o bin/out.x64.bin 
+CPL_64_BASE=cpl link loader.spec bin/loader.x64.o bin/out.x64.bin 
 
 
 
@@ -18,7 +18,7 @@ bin:
 	mkdir -p bin
 
 x64: bin
-	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/main.c -o bin/main.x64.o
+	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/loader.c -o bin/loader.x64.o
 	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/services.c -o bin/services.x64.o
 	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/utils.c -o bin/utils.x64.o
 	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/shellwriter.c -o bin/shellwriter.x64.o
