@@ -5,12 +5,12 @@ x64:
     load "bin/services.x64.o"
         merge
 
-    load "bin/utils.x64.o"
-        merge
-
     load "bin/shellwriter.x64.o"
         merge
 
+    load "bin/spoof_call.bin"
+        linkfunc "spoof_call_inner"
+    
     load "bin/spoof.x64.o"
         merge
 
