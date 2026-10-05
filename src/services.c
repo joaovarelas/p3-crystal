@@ -55,3 +55,69 @@ FARPROC resolve_ext(char * mod, char * func) {
 	return GetProcAddress(hModule, func);
 }
 
+
+/*
+ * find RW slackspace at the end of a .rdata section
+ */
+#define FLAG(x, y) ( ((x) & (y)) == (y) )
+
+char * findDataCave(char * dllBase, int length) {
+	DLLDATA                 data;
+	DWORD                   numberOfSections;
+	IMAGE_SECTION_HEADER  * sectionHdr       = NULL;
+	IMAGE_SECTION_HEADER  * sectionNxt       = NULL;
+
+	/* parse our DLL! */
+	ParseDLL(dllBase, &data);
+
+	/* loop through our sections */
+	numberOfSections = data.NtHeaders->FileHeader.NumberOfSections;
+	sectionHdr       = (IMAGE_SECTION_HEADER *)PTR_OFFSET(data.OptionalHeader, data.NtHeaders->FileHeader.SizeOfOptionalHeader);
+	for (int x = 0; (x + 1) < numberOfSections; x++) {
+		/* look for our RW section! */
+		if (FLAG(sectionHdr->Characteristics, IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_CNT_INITIALIZED_DATA)) {
+			/* let's look at our next section, we need it to get the right size of the code cave */
+			sectionNxt      = sectionHdr + 1;
+
+			/* calculate the size, based on section headers */
+			DWORD size      = sectionNxt->VirtualAddress - sectionHdr->VirtualAddress;
+
+			/* calculate the size of our code cave */
+			DWORD cavesize  = size - sectionHdr->Misc.VirtualSize;
+
+			/* if we fit, return it */
+			if (length < cavesize)
+				return dllBase + (sectionNxt->VirtualAddress - cavesize);
+		}
+
+		/* advance to our next section */
+		sectionHdr++;
+	}
+
+	return NULL;
+}
+
+/*
+ * This is our opt-in fixbss function. The method here is to look for slack R/W space within various
+ * loaded modules and use that for our .bss section. This is not compatible with multiple PICs being
+ * resident in the same process space using this method--but it does do the job of giving us global
+ * variables in our PIC.
+ */
+
+char * getBSS(DWORD length) {
+	/* try in our module */
+	HANDLE hModule = KERNEL32$GetModuleHandleA(NULL);
+	char * ptr     = findDataCave(hModule, length);
+
+	if (ptr != NULL)
+		return ptr;
+
+	/* try in kernel32 */
+	hModule = KERNEL32$GetModuleHandleA("Kernel32");
+	ptr     = findDataCave(hModule, length);
+	if (ptr != NULL)
+		return ptr;
+
+	/* it's really bad news if we get here... ka-rash! */
+	return NULL;
+}

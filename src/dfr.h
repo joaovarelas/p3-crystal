@@ -18,7 +18,10 @@ NTSYSAPI NTSTATUS NTAPI NTDLL$RtlCreateProcessParametersEx(PRTL_USER_PROCESS_PAR
 NTSYSAPI NTSTATUS NTAPI NTDLL$RtlDestroyProcessParameters(PRTL_USER_PROCESS_PARAMETERS ProcessParameters);
 NTSYSAPI NTSTATUS NTAPI NTDLL$NtCreateUserProcess(PHANDLE ProcessHandle, PHANDLE ThreadHandle, ACCESS_MASK ProcessDesiredAccess, ACCESS_MASK ThreadDesiredAccess, PVOID ProcessObjectAttributes, PVOID ThreadObjectAttributes, ULONG ProcessFlags, ULONG ThreadFlags, PRTL_USER_PROCESS_PARAMETERS ProcessParameters, PPS_CREATE_INFO CreateInfo, PPS_ATTRIBUTE_LIST AttributeList);
 NTSYSAPI NTSTATUS NTAPI NTDLL$NtResumeThread(HANDLE ThreadHandle, PULONG PreviousSuspendCount);
+NTSYSAPI  VOID NTAPI   NTDLL$RtlUserThreadStart(LPTHREAD_START_ROUTINE Function, PVOID Parameter);
 
+WINBASEAPI BOOL WINAPI KERNEL32$VirtualFree(LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType);
+WINBASEAPI VOID WINAPI KERNEL32$BaseThreadInitThunk(DWORD LdrReserved, LPTHREAD_START_ROUTINE lpStartAddress, PVOID lpParameter);
 WINBASEAPI BOOL WINAPI KERNEL32$CloseHandle(HANDLE hObject);
 WINBASEAPI BOOL WINAPI KERNEL32$ConvertFiberToThread();
 WINBASEAPI BOOL WINAPI KERNEL32$CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCWSTR lpCurrentDirectory, LPSTARTUPINFOW lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation);
