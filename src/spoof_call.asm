@@ -96,7 +96,8 @@ spoof_call_inner:
     mov     r11, [r15 + CTX_NULL_OFF]
     add     r11, rsp
     mov     [r11], rax
-
+    
+    ; jmp to target function
     jmp     r10
 
 ; fixup — entered via gadget after NT function returns

