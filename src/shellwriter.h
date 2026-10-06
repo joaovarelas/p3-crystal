@@ -41,15 +41,15 @@
 #ifndef SHELLWRITER_H
 #define SHELLWRITER_H
 
-typedef unsigned char      u8;
-typedef unsigned short     u16;
-typedef unsigned int       u32;
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
 typedef unsigned long long u64;
 
 /* Recommended output buffer sizes */
-#define SCW_BUF_SMALL   1024   /* single API call (LoadLibraryA, etc.)  */
-#define SCW_BUF_MEDIUM  4096   /* LoadAndCallShellCode with small SC     */
-#define SCW_BUF_LARGE   16384  /* LoadAndCallShellCode with large SC     */
+#define SCW_BUF_SMALL 1024  /* single API call (LoadLibraryA, etc.)  */
+#define SCW_BUF_MEDIUM 4096 /* LoadAndCallShellCode with small SC     */
+#define SCW_BUF_LARGE 16384 /* LoadAndCallShellCode with large SC     */
 
 /* ── Context ────────────────────────────────────────────────────────
  * Mirrors m_total_consumed_stack_bytes + the output vector in
@@ -59,18 +59,19 @@ typedef unsigned long long u64;
  *   runtime since shellcode entry (assumed 16-byte aligned at start).
  *   Used to decide if 8-byte alignment padding is needed before CALL.
  * ────────────────────────────────────────────────────────────────── */
-typedef struct {
-    u8  *buf;          /* output buffer (caller-provided)               */
-    int  len;          /* bytes written so far                           */
-    int  cap;          /* buffer capacity                                */
-    int  stack_bytes;  /* runtime RSP consumption since shellcode entry  */
+typedef struct
+{
+    u8 *buf;         /* output buffer (caller-provided)               */
+    int len;         /* bytes written so far                           */
+    int cap;         /* buffer capacity                                */
+    int stack_bytes; /* runtime RSP consumption since shellcode entry  */
 } SCW;
 
 /* ── Lifecycle ──────────────────────────────────────────────────────*/
 void scw_init(SCW *w, u8 *buf, int cap);
 
 /* Returns the offset of the first null byte, or -1 if clean.        */
-int  scw_check_nulls(const SCW *w);
+int scw_check_nulls(const SCW *w);
 
 /* Append raw bytes (use for custom gadgets not exposed here).        */
 void scw_append(SCW *w, const u8 *b, int n);
@@ -147,14 +148,10 @@ void scw_load_and_call(SCW *w,
  * dll_name: ASCII path string; null terminator is pushed null-free.  */
 void scw_call_loadlib(SCW *w, u64 loadlibrary_a, const char *dll_name);
 
-/* MessageBoxA(NULL, text, caption, type).
- * type: 0x40 = MB_ICONINFORMATION.                                   */
-void scw_call_msgbox(SCW *w, u64 messagebox_a,
-                     const char *text, const char *caption, u32 type);
-
-/* NtTerminateProcess(handle, exit_status).
- * Typical: handle=0xFFFFFFFFFFFFFFFF (NtCurrentProcess). No return.  */
-void scw_call_terminate(SCW *w, u64 nt_terminate,
-                        u64 handle, u32 exit_status);
+void scw_stomp_and_call(SCW *w,
+                        u64 virtual_protect,
+                        const char *dll_name,
+                        const char *export_name,
+                        const u8 *sc, int sc_len);
 
 #endif /* SHELLWRITER_H */

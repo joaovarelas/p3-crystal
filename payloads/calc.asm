@@ -86,7 +86,8 @@ _start:
 ; 6. "calc.exe\0" on the stack (zero byte on stack, not in code)
     xor   rax, rax
     push  rax                 ; null terminator lands on STACK
-    mov   rax, 6578652e64617065746f6eh  ; "calc.exe" LE, no null bytes
+    ;mov   rax, 6578652e64617065746f6eh  ; "calc.exe" LE, no null bytes
+    mov   rax, 0x6578652e636c6163  ; "calc.exe" little-endian, no nulls
     push  rax
     mov   rcx, rsp            ; arg1 = lpCmdLine
 
