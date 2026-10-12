@@ -16,6 +16,7 @@
 #define SCW_MEM_COMMIT 0x1000
 #define SCW_MEM_RESERVE 0x2000
 
+
 /* ── Lifecycle ─────────────────────────────────────────────────────── */
 
 void scw_init(SCW *w, u8 *buf, int cap)

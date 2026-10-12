@@ -189,3 +189,9 @@ typedef struct _PS_ATTRIBUTE_LIST {
 #define PS_ATTRIBUTE_IMAGE_NAME              0x00020005UL
 #define THREAD_CREATE_FLAGS_CREATE_SUSPENDED 0x00000001UL
 #define RTL_USER_PROCESS_PARAMETERS_NORMALIZED 0x01
+
+
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef unsigned long long u64;

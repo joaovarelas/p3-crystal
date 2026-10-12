@@ -8,6 +8,9 @@ x64:
     load "bin/shellwriter.x64.o"
         merge
 
+    load "bin/resource.x64.o"
+        merge
+
     load "bin/spoof_call.bin"
         linkfunc "spoof_call_inner"
     

@@ -41,15 +41,17 @@
 #ifndef SHELLWRITER_H
 #define SHELLWRITER_H
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
+
+#include "native.h"
 
 /* Recommended output buffer sizes */
 #define SCW_BUF_SMALL 1024  /* single API call (LoadLibraryA, etc.)  */
 #define SCW_BUF_MEDIUM 4096 /* LoadAndCallShellCode with small SC     */
 #define SCW_BUF_LARGE 16384 /* LoadAndCallShellCode with large SC     */
+
+#define SCW_STUB_SIZE(payload_len) (((payload_len) / 8 + 1) * 24 + 512)
+
+
 
 /* ── Context ────────────────────────────────────────────────────────
  * Mirrors m_total_consumed_stack_bytes + the output vector in

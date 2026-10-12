@@ -1,3 +1,6 @@
+; Stack spoofing concept based on Draugr
+; https://github.com/NtDallas/Draugr
+ 
 bits 64
 
 ; SPOOF_CTX field offsets
