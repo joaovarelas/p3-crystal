@@ -8,8 +8,8 @@
 #include "spoof.h"
 #include "resource.h"
 
-#define SCW_STOMP_MODULE "Kernel32.dll"
-#define SCW_STOMP_FUNC "BaseCheckAppcompatCache"
+#define SCW_STOMP_MODULE "KernelBase.dll"
+#define SCW_STOMP_FUNC "QueryDosDeviceW"
 
 char __SC__[0] __attribute__((section("sc")));
 char __MASK__[0] __attribute__((section("mask")));
