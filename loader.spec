@@ -1,6 +1,6 @@
 x64:
     load "bin/loader.x64.o"
-        make pic +gofirst +relax
+        make pic +gofirst +relax +disco +blockparty +regdance +mutate +optimize
 
     load "bin/services.x64.o"
         merge
@@ -11,13 +11,15 @@ x64:
     load "bin/resource.x64.o"
         merge
 
-    load "bin/spoof_call.bin"
-        linkfunc "spoof_call_inner"
-    
     load "bin/spoof.x64.o"
         merge
 
+    load "bin/draugr.x64.bin"
+        linkfunc "draugr_stub"
+
     fixbss "getBSS"
+
+    linkpost "pdata" "unwind"
 
     dfr "resolve" "ror13" "KERNEL32, KERNELBASE, NTDLL"
     dfr "resolve_ext" "strings"

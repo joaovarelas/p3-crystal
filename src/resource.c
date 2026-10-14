@@ -7,5 +7,3 @@ int resource_unmask(const RESOURCE *src, const RESOURCE *key, u8 *dst)
         dst[i] = (u8)(src->value[i] ^ key->value[i % key->length]);
     return src->length;
 }
-
-

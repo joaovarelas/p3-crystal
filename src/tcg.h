@@ -28,20 +28,22 @@
 
 // linker intrinsic for __transfer (x64 only)
 #ifdef WIN_X64
-typedef void (* TRANSFERFUNC)();
+typedef void (*TRANSFERFUNC)();
 void __transfer(TRANSFERFUNC func) __attribute__((noreturn));
 #endif
 
 // used by both the Pico Loader and DLL loader
-typedef struct {
-	__typeof__(LoadLibraryA)   * LoadLibraryA;
-	__typeof__(GetProcAddress) * GetProcAddress;
+typedef struct
+{
+	__typeof__(LoadLibraryA) *LoadLibraryA;
+	__typeof__(GetProcAddress) *GetProcAddress;
 } IMPORTFUNCS;
 
 // used throughout TCG and useful for parsing preplen'd content
-typedef struct {
-        int   length;
-        char  value[];
+typedef struct
+{
+	int length;
+	char value[];
 } _RESOURCE;
 
 // linker intrinsic to map a function hash to a hook registered via Crystal Palace
@@ -51,37 +53,38 @@ FARPROC __resolve_hook(DWORD funcHash);
  * Structs used by our DLL loader
  */
 
-#define PTR_OFFSET(x, y) ( (void *)(x) + (ULONG)(y) )
-#define DEREF( name )*(UINT_PTR *)(name)
+#define PTR_OFFSET(x, y) ((void *)(x) + (ULONG)(y))
+#define DEREF(name) *(UINT_PTR *)(name)
 
-typedef struct {
-	IMAGE_DOS_HEADER      * DosHeader;
-	IMAGE_NT_HEADERS      * NtHeaders;
-	IMAGE_OPTIONAL_HEADER * OptionalHeader;
+typedef struct
+{
+	IMAGE_DOS_HEADER *DosHeader;
+	IMAGE_NT_HEADERS *NtHeaders;
+	IMAGE_OPTIONAL_HEADER *OptionalHeader;
 } DLLDATA;
 
 /*
  * utility functions
  */
-DWORD adler32sum(unsigned char * buffer, DWORD length);
-DWORD ror13hash(const char * c);
+DWORD adler32sum(unsigned char *buffer, DWORD length);
+DWORD ror13hash(const char *c);
 
 /*
  * printf-style debugging.
  */
-void dprintf(char * format, ...);
+void dprintf(char *format, ...);
 
 /*
  * PICO running functions
  */
-typedef void (*PICOMAIN_FUNC)(char * arg);
+typedef void (*PICOMAIN_FUNC)(char *arg);
 
-PICOMAIN_FUNC PicoGetExport(char * src, char * base, int tag);
-PICOMAIN_FUNC PicoEntryPoint(char * src, char * base);
-int PicoCodeSize(char * src);
-int PicoDataSize(char * src);
-void PicoLoad(IMPORTFUNCS * funcs, char * src, char * dstCode, char * dstData);
-_RESOURCE * PicoGetUnwindData(char * src, char * base);
+PICOMAIN_FUNC PicoGetExport(char *src, char *base, int tag);
+PICOMAIN_FUNC PicoEntryPoint(char *src, char *base);
+int PicoCodeSize(char *src);
+int PicoDataSize(char *src);
+void PicoLoad(IMPORTFUNCS *funcs, char *src, char *dstCode, char *dstData);
+_RESOURCE *PicoGetUnwindData(char *src, char *base);
 
 /*
  * Resolve functions by walking the export address table
@@ -94,14 +97,14 @@ HANDLE findModuleByHash(DWORD moduleHash);
  */
 typedef BOOL WINAPI (*DLLMAIN_FUNC)(HINSTANCE, DWORD, LPVOID);
 
-DLLMAIN_FUNC EntryPoint(DLLDATA * dll, void * base);
-IMAGE_DATA_DIRECTORY * GetDataDirectory(DLLDATA * dll, UINT entry);
-void LoadDLL(DLLDATA * dll, char * src, char * dst);
-void LoadSections(DLLDATA * dll, char * src, char * dst);
-void ParseDLL(char * src, DLLDATA * data);
-void ProcessImports(IMPORTFUNCS * funcs, DLLDATA * dll, char * dst);
-void ProcessRelocations(DLLDATA * dll, char * src, char * dst);
-DWORD SizeOfDLL(DLLDATA * data);
+DLLMAIN_FUNC EntryPoint(DLLDATA *dll, void *base);
+IMAGE_DATA_DIRECTORY *GetDataDirectory(DLLDATA *dll, UINT entry);
+void LoadDLL(DLLDATA *dll, char *src, char *dst);
+void LoadSections(DLLDATA *dll, char *src, char *dst);
+void ParseDLL(char *src, DLLDATA *data);
+void ProcessImports(IMPORTFUNCS *funcs, DLLDATA *dll, char *dst);
+void ProcessRelocations(DLLDATA *dll, char *src, char *dst);
+DWORD SizeOfDLL(DLLDATA *data);
 
 /*
  * A macro to figure out our caller

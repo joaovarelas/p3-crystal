@@ -32,9 +32,9 @@ x64: bin src/peb_walk_blob.h
 	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/loader.c      -o bin/loader.x64.o
 	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/services.c    -o bin/services.x64.o
 	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/shellwriter.c -o bin/shellwriter.x64.o
-	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/resource.c 	  -o bin/resource.x64.o
+	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/resource.c    -o bin/resource.x64.o
 	$(CC_64) -DWIN_X64 $(CFLAGS) -c src/spoof.c       -o bin/spoof.x64.o
-	$(NASM_BIN) src/spoof_call.asm -o bin/spoof_call.bin
+	$(NASM_BIN) src/draugr.asm -o bin/draugr.x64.bin
 
 # ── Link Crystal Palace PIC blob ─────────────────────────────────────
 link.x64: x64
